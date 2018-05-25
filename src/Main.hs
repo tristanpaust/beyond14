@@ -95,13 +95,16 @@ test = makeTile 1 (Just 6)
 emptyBoard :: Picture
 emptyBoard = pictures [ drawBoard (makeBoard gameState) ]
 
+-- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
+-- End of Drawing Stuff
+
 updateTile :: Int -> [(Int, Maybe Int)] -> [(Int, Maybe Int)]
 updateTile x ((a,b):xs)
   | a == 4 = ((a,(Just x)):xs)
   | otherwise = (a,b):updateTile x xs
 
-updateB :: Board -> Board
-updateB b = makeBoard (pushUpdates gameState 2)
+updateB :: Board -> Int -> Board
+updateB b v = makeBoard (pushUpdates gameState 2)
 
 
 
@@ -115,9 +118,26 @@ checkCoordinate f' =
 --} 
 handleKeys :: Event -> Board -> Board
 handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
-	updateB b
+	makeBoard (pushUpdates (insertAt (getGameState b) 1 4) 4)
 
 handleKeys _ b = b   
+
+-- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
+-- Start of Changing from Board to List, Updating values, etc
+
+tilesToList :: [Tile] -> [(Int, Maybe Int)]
+tilesToList (x:xs) = (tileToPair x):(tilesToList xs)
+tilesToList [] = []
+
+tileToPair :: Tile -> (Int, Maybe Int)
+tileToPair t@Tile{value=(a,b)} = (a,b)
+
+boardToTiles :: Board -> [Tile]
+boardToTiles b@Board{state=(x:xs)} = (x:xs)
+
+getGameState :: Board -> [(Int, Maybe Int)]
+getGameState b = tilesToList(boardToTiles b)
+
 
 main :: IO ()
 main = play window background 1 (makeBoard gameState) drawBoard handleKeys (flip const)
@@ -154,6 +174,16 @@ getList board index =
 -- Compare all values of neighboring tiles with the new tile and return a new sub-board in which all old values are turned into "Nothing" if they matched
 checkNeighborVals :: (Int, Maybe Int) -> [(Int, Maybe Int)] -> [(Int, Maybe Int)]
 checkNeighborVals (x,y) xs = [(v,Nothing) | (v,w) <- xs, w == y]
+
+-- Find a pair at a certain index, replace the value with something new and return the update gamestate
+-- Do not update the gamestate if the field already has a value, that is, b in (a,b) is not "Nothing"
+insertAt :: [(Int, Maybe Int)] -> Int -> Int -> [(Int, Maybe Int)]
+insertAt ((a,b):xs) newVal index
+  | a == index = case b of
+  	Nothing -> (a,(Just newVal)):xs
+  	(Just b) -> (a,(Just b)):xs
+  | otherwise = (a,b):(insertAt xs newVal index)
+insertAt [] _ _ = []
 
 -- Get the neighboring values already changed to "Nothing" from the function above and apply this sub-board to the actual game state board
 -- Then increase the new tile value by one if we had a value match
