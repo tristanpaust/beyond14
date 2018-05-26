@@ -4,6 +4,7 @@ import Data.List (nubBy)
 import Data.Maybe
 import Control.Monad
 import Control.Applicative
+import System.Random (randomRIO)
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 
@@ -23,10 +24,10 @@ gameState = [
   (1,  Nothing),
   (2,  Nothing),
   (3,  Nothing),
-  (4,  Nothing),
+  (4,  Just 1),
   (5,  Nothing),
   (6,  Nothing),
-  (7,  Nothing),
+  (7,  Just 4),
   (8,  Nothing),
   (9,  Nothing),
   (10, Nothing),
@@ -56,9 +57,9 @@ makeTile a b = Tile {value = (a,b)}
 getTileList ((a,b):xs) = makeTile a b : getTileList xs
 getTileList [] = []
 
-makeBoard :: [(Int, Maybe Int)] -> Board
-makeBoard [] = Board {state = []}
-makeBoard ((a,b):xs) = Board {state = getTileList ((a,b):xs), nextVals = (makeNewNumbers 1, makeNewNumbers 2)}
+makeBoard :: [(Int, Maybe Int)] -> (Int, Int) -> Board
+makeBoard [] _ = Board {state = [], nextVals = (makeNewNumbers 1,makeNewNumbers 1)}
+makeBoard ((a,b):xs) (i,j) = Board {state = getTileList ((a,b):xs), nextVals = (makeNewNumbers i, makeNewNumbers j)}
 
 makeNewNumbers :: Int -> NextVal
 makeNewNumbers a = NextVal {number = (a)}
@@ -110,7 +111,7 @@ drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13,
 
 -- Initialize empty board that'll be used for the gui
 emptyBoard :: Picture
-emptyBoard = pictures [ drawBoard (makeBoard gameState) ]
+emptyBoard = pictures [ drawBoard (makeBoard gameState (1,1)) ]
 
 -- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
 -- End of Drawing Stuff
@@ -160,14 +161,41 @@ coordsToInt (a,b) =
 		(Just 3, Just 3) -> 16
 		_ -> 0
 
+-- Map coords to index
 getIndex :: (Float, Float) -> Int
 getIndex (x,y) = coordsToInt (checkXCoordinate x, checkYCoordinate y)
 
+-- Get values from board
+getNextNumber :: Board -> Int
+getNextNumber b@Board{nextVals=(i,j)} = getValFromNumber i
+
+-- Get value out of NextVal, which will be placed on the board on click
+getValFromNumber :: NextVal -> Int
+getValFromNumber n@NextVal{number=i} = i
+
+getFreshvalue :: Board -> IO Int
+getFreshvalue b = randomlyChoose (getGameState b)
+
+-- Turn gamestate index, value list into a list of values
+-- Is used to pick a number from at random in order to create new values that can be placed on the board
+makeListFromState :: [(Int, Maybe Int)] -> [Int]
+makeListFromState ((a,x):xs)
+  | x /= Nothing = (getNumber x):makeListFromState (xs)
+  | x == Nothing = makeListFromState xs
+makeListFromState [] = []
+
+-- Pick a value from already placed values on the board and return it
+randomlyChoose :: [(Int, Maybe Int)] -> IO Int
+randomlyChoose currentState = 
+  if (makeListFromState currentState) /= [] then do
+  	i <- randomRIO (0,(length(makeListFromState currentState)-1))
+  	return ((makeListFromState currentState) !! i)
+  else return 1
+
 handleKeys :: Event -> Board -> Board
 handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
-	makeBoard (pushUpdates (insertAt (getGameState b) 3 ((getIndex(x',y')))) ((getIndex(x',y'))))
+	makeBoard (pushUpdates (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (1,2)
 
---getIndex (x',y')
 handleKeys _ b = b   
 
 -- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
@@ -188,7 +216,7 @@ getGameState b = tilesToList(boardToTiles b)
 
 
 main :: IO ()
-main = play window background 1 (makeBoard gameState) drawBoard handleKeys (flip const)
+main = play window background 1 (makeBoard gameState (1,1)) drawBoard handleKeys (flip const)
 
 -- Get a tuple (value, index) of a certain element by its index
 getCurrentValue :: [(Int,Maybe Int)] -> Int -> (Int, Maybe Int)
@@ -259,4 +287,4 @@ increaseCurrentValue :: [(Int, Maybe Int)] -> (Int, Maybe Int) -> [(Int, Maybe I
 increaseCurrentValue [] (x, Just y) = [(x, Just y)]
 increaseCurrentValue ((a,b):c) (x, Just y)
   | a == x = (x, Just (y + 1)):c
-  | otherwise = (a,b):increaseCurrentValue c (x, Just y)  
+  | otherwise = (a,b):increaseCurrentValue c (x, Just y)
