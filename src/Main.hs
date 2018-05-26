@@ -8,7 +8,7 @@ import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 
 width, height, offset :: Int
-width = 400
+width = 500
 height = 600
 offset = 400
 
@@ -20,12 +20,12 @@ background = dark green
 
 gameState :: [(Int, Maybe Int)]
 gameState = [
-  (1,  Just 1),
-  (2,  Just 1),
-  (3,  Just 1),
+  (1,  Nothing),
+  (2,  Nothing),
+  (3,  Nothing),
   (4,  Nothing),
-  (5,  Just 2),
-  (6,  Just 3),
+  (5,  Nothing),
+  (6,  Nothing),
   (7,  Nothing),
   (8,  Nothing),
   (9,  Nothing),
@@ -35,7 +35,7 @@ gameState = [
   (13, Nothing),
   (14, Nothing),
   (15, Nothing),
-  (16, Just 1)
+  (16, Nothing)
   ]
 -- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
 
@@ -82,10 +82,10 @@ drawRow [a,b,c,d] =
 drawBoard :: Board -> Picture
 drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16]} =
   pictures [
-    translate (-150) 200 (drawRow [a1, a2, a3, a4]),
-    translate (-150) 100 (drawRow [a5, a6, a7, a8]),
-    translate (-150) 000 (drawRow [a9, a10, a11, a12]),
-    translate (-150) (-100) (drawRow [a13, a14, a15, a16])
+    translate (-150) 150 (drawRow [a1, a2, a3, a4]),
+    translate (-150) 50 (drawRow [a5, a6, a7, a8]),
+    translate (-150) (-50) (drawRow [a9, a10, a11, a12]),
+    translate (-150) (-150) (drawRow [a13, a14, a15, a16])
   ]
 
 test :: Tile
@@ -116,10 +116,52 @@ checkCoordinate f' =
   <|> 0.5    <$ guard (0  < f && f < 1)
   <|> 1.5    <$ guard (1  < f && f < 2 )
 --} 
+
+checkXCoordinate :: Float -> Maybe Int
+checkXCoordinate x
+  	| (-200 < x) && (x < -100)= (Just 0)
+  	| (-100 < x) && (x < 000) = (Just 1)
+  	| (0 < x)    && (x < 100) = (Just 2)
+  	| (100 < x)  && (x < 200) = (Just 3)
+  	| otherwise = Nothing
+
+checkYCoordinate :: Float -> Maybe Int
+checkYCoordinate y
+  	| (200  > y   && y > 100)  = (Just 0)
+  	| (100  > y   && y > 000)  = (Just 1)
+  	| (0    > y   && y > -100) = (Just 2)
+  	| (-100 > y   && y > -200) = (Just 3)
+  	| otherwise = Nothing
+
+coordsToInt :: (Maybe Int, Maybe Int) -> Int
+coordsToInt (a,b) =
+	case (a,b) of
+		(Just 0, Just 0) -> 1
+		(Just 1, Just 0) -> 2
+		(Just 2, Just 0) -> 3
+		(Just 3, Just 0) -> 4
+		(Just 0, Just 1) -> 5
+		(Just 1, Just 1) -> 6
+		(Just 2, Just 1) -> 7
+		(Just 3, Just 1) -> 8
+		(Just 0, Just 2) -> 9
+		(Just 1, Just 2) -> 10
+		(Just 2, Just 2) -> 11
+		(Just 3, Just 2) -> 12
+		(Just 0, Just 3) -> 13
+		(Just 1, Just 3) -> 14
+		(Just 2, Just 3) -> 15
+		(Just 3, Just 3) -> 16
+		_ -> 0
+
+getIndex :: (Float, Float) -> Int
+getIndex (x,y) = coordsToInt (checkXCoordinate x, checkYCoordinate y)
+
 handleKeys :: Event -> Board -> Board
 handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
-	makeBoard (pushUpdates (insertAt (getGameState b) 1 4) 4)
+	makeBoard (pushUpdates (insertAt (getGameState b) 3 ((getIndex(x',y')))) ((getIndex(x',y'))))
 
+--getIndex (x',y')
 handleKeys _ b = b   
 
 -- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
