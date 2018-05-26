@@ -42,24 +42,40 @@ gameState = [
 data Tile = Tile {value :: (Int, Maybe Int)}
   deriving Show
 
+-- Used to show the next two numbers that need to be placed
+data NextVal = NextVal {number :: Int}
+
 type Coordinates = (Float, Float)
 
 data Board = Board
-  { numCoords :: [Coordinates], state :: [Tile], score :: Int }
+  { nextVals :: (NextVal,NextVal), state :: [Tile], score :: Int }
 
 makeTile :: Int -> Maybe Int -> Tile
 makeTile a b = Tile {value = (a,b)}
 
-foo ((a,b):xs) = makeTile a b : foo xs
-foo [] = []
+getTileList ((a,b):xs) = makeTile a b : getTileList xs
+getTileList [] = []
 
 makeBoard :: [(Int, Maybe Int)] -> Board
 makeBoard [] = Board {state = []}
-makeBoard ((a,b):xs) = Board {state = foo ((a,b):xs)}
+makeBoard ((a,b):xs) = Board {state = getTileList ((a,b):xs), nextVals = (makeNewNumbers 1, makeNewNumbers 2)}
 
+makeNewNumbers :: Int -> NextVal
+makeNewNumbers a = NextVal {number = (a)}
+
+drawNextNumbers :: NextVal -> Picture
+drawNextNumbers t@NextVal{number=b} = 
+  let background = [color blue $ rectangleSolid 100 100,
+                    color yellow  $ rectangleSolid 95 95
+                   ]
+      number =  [translate (-20) (-20) $ scale 0.5 0.5 $ text $ show $ b]
+    in pictures [ translate 0 0 $ pictures $ background ++ number ]
+
+-- Take value out of "Just" as we don#t want to print that word
 getNumber :: Maybe Int -> Int
 getNumber (Just number) = number
 
+-- Make a tile with a small frame, a background and a value on top
 drawTile :: Float -> Tile -> Picture
 drawTile x t@Tile{value=(a,b)} = 
   let background = [color orange $ rectangleSolid 100 100,
@@ -70,6 +86,7 @@ drawTile x t@Tile{value=(a,b)} =
                  else []
     in pictures [ translate x 0 $ pictures $ background ++ number ]
 
+-- Make 4 tiles for every row, shifted vertically
 drawRow :: [Tile] -> Picture
 drawRow [a,b,c,d] = 
   pictures [
@@ -79,17 +96,17 @@ drawRow [a,b,c,d] =
     drawTile 300 d
     ]
 
+-- Get all tiles and make rows
 drawBoard :: Board -> Picture
-drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16]} =
+drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16], nextVals=(i,j)} =
   pictures [
+  	translate (150) 250 $ scale 0.8 0.8 $ ((drawNextNumbers i)),
+  	translate (80) 235 $ scale 0.5 0.5 $ ((drawNextNumbers j)),  	
     translate (-150) 150 (drawRow [a1, a2, a3, a4]),
     translate (-150) 50 (drawRow [a5, a6, a7, a8]),
     translate (-150) (-50) (drawRow [a9, a10, a11, a12]),
     translate (-150) (-150) (drawRow [a13, a14, a15, a16])
   ]
-
-test :: Tile
-test = makeTile 1 (Just 6)
 
 -- Initialize empty board that'll be used for the gui
 emptyBoard :: Picture
@@ -103,20 +120,7 @@ updateTile x ((a,b):xs)
   | a == 4 = ((a,(Just x)):xs)
   | otherwise = (a,b):updateTile x xs
 
-updateB :: Board -> Int -> Board
-updateB b v = makeBoard (pushUpdates gameState 2)
-
-
-
-{--
-checkCoordinate :: Float -> Maybe Float
-checkCoordinate f' =
-  in  (-1.5) <$ guard (-2 < f && f < -1)
-  <|> (-0.5) <$ guard (-1 < f && f < 0)
-  <|> 0.5    <$ guard (0  < f && f < 1)
-  <|> 1.5    <$ guard (1  < f && f < 2 )
---} 
-
+-- Get the clicked x position and return an index, or nothing if outside
 checkXCoordinate :: Float -> Maybe Int
 checkXCoordinate x
   	| (-200 < x) && (x < -100)= (Just 0)
@@ -125,6 +129,7 @@ checkXCoordinate x
   	| (100 < x)  && (x < 200) = (Just 3)
   	| otherwise = Nothing
 
+-- Get the clicked y position and return an index, or nothing if outside
 checkYCoordinate :: Float -> Maybe Int
 checkYCoordinate y
   	| (200  > y   && y > 100)  = (Just 0)
@@ -133,6 +138,7 @@ checkYCoordinate y
   	| (-100 > y   && y > -200) = (Just 3)
   	| otherwise = Nothing
 
+-- Make the tuple of coordinates to an actual index number in the gamestate tuple list
 coordsToInt :: (Maybe Int, Maybe Int) -> Int
 coordsToInt (a,b) =
 	case (a,b) of
