@@ -1,5 +1,6 @@
 module Main where
-  
+
+import System.IO    
 import Data.List (nubBy)
 import Data.Maybe
 import Control.Monad
@@ -63,7 +64,7 @@ getTileList ((a,b):xs) = makeTile a b : getTileList xs
 getTileList [] = []
 
 makeBoard :: [(Int, Maybe Int)] -> (Int, Int) -> Int -> ([(Int, Maybe Int)], [(Int, Maybe Int)], [(Int, Maybe Int)]) -> Board
-makeBoard [] _ _ _ = Board {state = [], nextVals = (makeNewNumbers 1,makeNewNumbers 1), prevInput = 0, history=(gameState, gameState, gameState)}
+makeBoard [] _ _ _ = Board {state = [], nextVals = (makeNewNumbers 1,makeNewNumbers 1), prevInput = 0, history=(gameState, gameState, gameState), score=0}
 makeBoard ((a,b):xs) (i,j) p (v,w,x) = Board {state = getTileList ((a,b):xs), nextVals = (makeNewNumbers i, makeNewNumbers j), prevInput = p, history=(v,w,x)}
 
 makeNewNumbers :: Int -> NextVal
@@ -75,6 +76,14 @@ drawNextNumbers t@NextVal{number=b} =
                     color yellow  $ rectangleSolid 95 95
                    ]
       number =  [translate (-20) (-20) $ scale 0.5 0.5 $ text $ show $ b]
+    in pictures [ translate 0 0 $ pictures $ background ++ number ]
+
+drawSpecialButton :: String -> Picture
+drawSpecialButton s = 
+  let background = [color blue $ rectangleSolid 100 100,
+                    color yellow  $ rectangleSolid 95 95
+                   ]
+      number =  [translate (-20) (-20) $ scale 0.5 0.5 $ text $ s]
     in pictures [ translate 0 0 $ pictures $ background ++ number ]
 
 -- Take value out of "Just" as we don#t want to print that word
@@ -106,13 +115,13 @@ drawRow [a,b,c,d] =
 drawBoard :: Board -> Picture
 drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16], nextVals=(i,j), prevInput=k, history=(v,w,x)} =
   pictures [
-  	translate (150) 250 $ scale 0.8 0.8 $ ((drawNextNumbers i)), -- Next number
-  	translate (80) 235 $ scale 0.5 0.5 $ ((drawNextNumbers j)), -- Next next number
-  	translate (-175) (-230) $ scale 0.5 0.5 $ ((drawNextNumbers i)), -- Destroy tile
-  	translate (-115) (-230) $ scale 0.5 0.5 $ ((drawNextNumbers j)), -- Clone tile
-  	translate (-55) (-230) $ scale 0.5 0.5 $ ((drawNextNumbers j)), -- Reshuffle
-  	translate (5) (-230) $ scale 0.5 0.5 $ line [(-50, 50),(-50,-50)],
-  	translate (15) (-230) $ scale 0.5 0.5 $ ((drawNextNumbers j)), -- Rewind
+    translate (150) 250 $ scale 0.8 0.8 $ ((drawNextNumbers i)), -- Next number
+    translate (80) 235 $ scale 0.5 0.5 $ ((drawNextNumbers j)), -- Next next number
+    translate (-175) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "D")), -- Destroy tile
+    translate (-115) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "C")), -- Clone tile
+    translate (-55) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "S")), -- Reshuffle
+    translate (5) (-230) $ scale 0.5 0.5 $ line [(-50, 50),(-50,-50)],
+    translate (15) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "R")), -- Rewind
     translate (-150) 150 (drawRow [a1, a2, a3, a4]), -- Top row
     translate (-150) 50 (drawRow [a5, a6, a7, a8]), -- Second to top row
     translate (-150) (-50) (drawRow [a9, a10, a11, a12]), -- Second to bottom row
@@ -132,58 +141,58 @@ updateTile x ((a,b):xs)
   | otherwise = (a,b):updateTile x xs
 
 -- Get the clicked x position and return an index, or nothing if outside
-checkXCoordinate :: Float -> Maybe Int
-checkXCoordinate x
-  	| (-200 < x) && (x < -150)= (Just 4) -- Destroy Tile
-  	| (-140 < x) && (x < -90) =	(Just 5) -- Clone Tile
-	| (-80 < x) && (x < -30) =	(Just 6) -- New shuffle
-    | (-20 < x) && (x <  30) =	(Just 7) -- Rewind
-  	| (-200 < x) && (x < -100)= (Just 0)
-  	| (-100 < x) && (x < 000) = (Just 1)
-  	| (0 < x)    && (x < 100) = (Just 2)
-  	| (100 < x)  && (x < 200) = (Just 3)
-  	| otherwise = Nothing
+checkXCoordinate :: Float -> Float -> Maybe Int
+checkXCoordinate x y -- Adding the way condition here to avoid overlapping between special actions and tiles
+    | (-200 < x) && (x < -150) && (-200 > y   && y > -260) = (Just 4) -- Destroy Tile
+    | (-140 < x) && (x < -90)  && (-200 > y   && y > -260) = (Just 5) -- Clone Tile
+    | (-80 < x) &&  (x < -30)  && (-200 > y   && y > -260) = (Just 6) -- New shuffle
+    | (-20 < x) &&  (x <  30)  && (-200 > y   && y > -260) = (Just 7) -- Rewind
+    | (-200 < x) && (x < -100)= (Just 0)
+    | (-100 < x) && (x < 000) = (Just 1)
+    | (0 < x)    && (x < 100) = (Just 2)
+    | (100 < x)  && (x < 200) = (Just 3)
+    | otherwise = Nothing
 
 -- Get the clicked y position and return an index, or nothing if outside
 checkYCoordinate :: Float -> Maybe Int
 checkYCoordinate y
-  	| (-200 > y   && y > -260) = (Just 4) -- Any of the bottom buttons 
-  	| (200  > y   && y > 100)  = (Just 0)
-  	| (100  > y   && y > 000)  = (Just 1)
-  	| (0    > y   && y > -100) = (Just 2)
-  	| (-100 > y   && y > -200) = (Just 3)
+    | (-200 > y   && y > -260) = (Just 4) -- Any of the bottom buttons 
+    | (200  > y   && y > 100)  = (Just 0)
+    | (100  > y   && y > 000)  = (Just 1)
+    | (0    > y   && y > -100) = (Just 2)
+    | (-100 > y   && y > -200) = (Just 3)
 
-  	| otherwise = Nothing
+    | otherwise = Nothing
 
 -- Make the tuple of coordinates to an actual index number in the gamestate tuple list
 coordsToInt :: (Maybe Int, Maybe Int) -> Int
 coordsToInt (a,b) =
-	case (a,b) of
-		(Just 0, Just 0) -> 1
-		(Just 1, Just 0) -> 2
-		(Just 2, Just 0) -> 3
-		(Just 3, Just 0) -> 4
-		(Just 0, Just 1) -> 5
-		(Just 1, Just 1) -> 6
-		(Just 2, Just 1) -> 7
-		(Just 3, Just 1) -> 8
-		(Just 0, Just 2) -> 9
-		(Just 1, Just 2) -> 10
-		(Just 2, Just 2) -> 11
-		(Just 3, Just 2) -> 12
-		(Just 0, Just 3) -> 13
-		(Just 1, Just 3) -> 14
-		(Just 2, Just 3) -> 15
-		(Just 3, Just 3) -> 16
-		(Just 4, Just 4) -> 17
-		(Just 5, Just 4) -> 18
-		(Just 6, Just 4) -> 19
-		(Just 7, Just 4) -> 20		
-		_ -> 0
+  case (a,b) of
+    (Just 0, Just 0) -> 1
+    (Just 1, Just 0) -> 2
+    (Just 2, Just 0) -> 3
+    (Just 3, Just 0) -> 4
+    (Just 0, Just 1) -> 5
+    (Just 1, Just 1) -> 6
+    (Just 2, Just 1) -> 7
+    (Just 3, Just 1) -> 8
+    (Just 0, Just 2) -> 9
+    (Just 1, Just 2) -> 10
+    (Just 2, Just 2) -> 11
+    (Just 3, Just 2) -> 12
+    (Just 0, Just 3) -> 13
+    (Just 1, Just 3) -> 14
+    (Just 2, Just 3) -> 15
+    (Just 3, Just 3) -> 16
+    (Just 4, Just 4) -> 17
+    (Just 5, Just 4) -> 18
+    (Just 6, Just 4) -> 19
+    (Just 7, Just 4) -> 20    
+    _ -> 0
 
 -- Map coords to index
 getIndex :: (Float, Float) -> Int
-getIndex (x,y) = coordsToInt (checkXCoordinate x, checkYCoordinate y)
+getIndex (x,y) = coordsToInt (checkXCoordinate x y, checkYCoordinate y)
 
 -- Get values from board
 getNextNumber :: Board -> Int
@@ -209,8 +218,8 @@ makeListFromState [] = []
 randomlyChoose :: [(Int, Maybe Int)] -> IO Int
 randomlyChoose currentState = 
   if (makeListFromState currentState) /= [] then do
-  	i <- randomRIO (0,(length(makeListFromState currentState)-1))
-  	return ((makeListFromState currentState) !! i)
+    i <- randomRIO (0,(length(makeListFromState currentState)-1))
+    return ((makeListFromState currentState) !! i)
   else return 1
 
 updatePrev b x = Board {prevInput = x, nextVals = (makeNewNumbers 1, makeNewNumbers 2), state = getTileList(getGameState b)}
@@ -229,9 +238,9 @@ handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     else if (getIndex(x',y')) == 19 then -- Make new next values
       makeBoard (getGameState b) (12,3) 0 (updateHistory (getGameState b) b)
     else if (getIndex(x',y')) == 20 then -- Go one step back in history
-    	makeBoard (getFromHistory b) (1,2) 0 (updateHistory (getGameState b) b)
+      makeBoard (getFromHistory b) (1,2) 0 (updateHistory (getGameState b) b)
     else -- Default cause: Just place new tile
-      makeBoard (pushUpdates (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (1,2) 0	(updateHistory (pushUpdates (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b)
+      makeBoard (pushUpdates (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (1,2) 0  (updateHistory (pushUpdates (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b)
 
 handleKeys _ b = b   
 
@@ -293,8 +302,8 @@ checkNeighborVals (x,y) xs = [(v,Nothing) | (v,w) <- xs, w == y]
 insertAt :: [(Int, Maybe Int)] -> Int -> Int -> [(Int, Maybe Int)]
 insertAt ((a,b):xs) newVal index
   | a == index = case b of
-  	Nothing -> (a,(Just newVal)):xs
-  	(Just b) -> (a,(Just b)):xs
+    Nothing -> (a,(Just newVal)):xs
+    (Just b) -> (a,(Just b)):xs
   | otherwise = (a,b):(insertAt xs newVal index)
 insertAt [] _ _ = []
 
@@ -336,6 +345,8 @@ cloneValue index ((a,b):xs)
   | index == a = getNumber b 
   | otherwise = cloneValue index xs
 
+updateHistory :: [(Int, Maybe Int)] -> Board -> ([(Int, Maybe Int)],[(Int, Maybe Int)],[(Int, Maybe Int)])
 updateHistory y b@Board{history=(v,w,x)} = (y,v,w)
 
+getFromHistory :: Board -> [(Int, Maybe Int)]
 getFromHistory b@Board{history=(v,w,x)} = w
