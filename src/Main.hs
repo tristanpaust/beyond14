@@ -48,8 +48,13 @@ data NextVal = NextVal {number :: Int}
 
 type Coordinates = (Float, Float)
 
-data Board = Board
-  { nextVals :: (NextVal,NextVal), state :: [Tile], score :: Int, prevInput :: Int}
+data Board = Board { 
+  nextVals :: (NextVal,NextVal), -- The two next numbers that are displayed on top
+  state :: [Tile], 
+  score :: Int, 
+  prevInput :: Int, -- If this is not 0, we gotta do something special next turn
+  history :: ([(Int, Maybe Int)], [(Int, Maybe Int)], [(Int, Maybe Int)]) -- Keep the latest 3 gamestates in a tuple for the rewind action
+}
 
 makeTile :: Int -> Maybe Int -> Tile
 makeTile a b = Tile {value = (a,b)}
@@ -57,9 +62,9 @@ makeTile a b = Tile {value = (a,b)}
 getTileList ((a,b):xs) = makeTile a b : getTileList xs
 getTileList [] = []
 
-makeBoard :: [(Int, Maybe Int)] -> (Int, Int) -> Int -> Board
-makeBoard [] _ _ = Board {state = [], nextVals = (makeNewNumbers 1,makeNewNumbers 1), prevInput = 0}
-makeBoard ((a,b):xs) (i,j) p = Board {state = getTileList ((a,b):xs), nextVals = (makeNewNumbers i, makeNewNumbers j), prevInput = p}
+makeBoard :: [(Int, Maybe Int)] -> (Int, Int) -> Int -> ([(Int, Maybe Int)], [(Int, Maybe Int)], [(Int, Maybe Int)]) -> Board
+makeBoard [] _ _ _ = Board {state = [], nextVals = (makeNewNumbers 1,makeNewNumbers 1), prevInput = 0, history=(gameState, gameState, gameState)}
+makeBoard ((a,b):xs) (i,j) p (v,w,x) = Board {state = getTileList ((a,b):xs), nextVals = (makeNewNumbers i, makeNewNumbers j), prevInput = p, history=(v,w,x)}
 
 makeNewNumbers :: Int -> NextVal
 makeNewNumbers a = NextVal {number = (a)}
@@ -99,7 +104,7 @@ drawRow [a,b,c,d] =
 
 -- Get all tiles and make rows
 drawBoard :: Board -> Picture
-drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16], nextVals=(i,j), prevInput=k} =
+drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16], nextVals=(i,j), prevInput=k, history=(v,w,x)} =
   pictures [
   	translate (150) 250 $ scale 0.8 0.8 $ ((drawNextNumbers i)), -- Next number
   	translate (80) 235 $ scale 0.5 0.5 $ ((drawNextNumbers j)), -- Next next number
@@ -116,7 +121,7 @@ drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13,
 
 -- Initialize empty board that'll be used for the gui
 emptyBoard :: Picture
-emptyBoard = pictures [ drawBoard (makeBoard gameState (1,1) 0) ]
+emptyBoard = pictures [ drawBoard (makeBoard gameState (1,1) 0 (gameState, gameState, gameState)) ]
 
 -- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
 -- End of Drawing Stuff
@@ -132,6 +137,7 @@ checkXCoordinate x
   	| (-200 < x) && (x < -150)= (Just 4) -- Destroy Tile
   	| (-140 < x) && (x < -90) =	(Just 5) -- Clone Tile
 	| (-80 < x) && (x < -30) =	(Just 6) -- New shuffle
+    | (-20 < x) && (x <  30) =	(Just 7) -- Rewind
   	| (-200 < x) && (x < -100)= (Just 0)
   	| (-100 < x) && (x < 000) = (Just 1)
   	| (0 < x)    && (x < 100) = (Just 2)
@@ -172,6 +178,7 @@ coordsToInt (a,b) =
 		(Just 4, Just 4) -> 17
 		(Just 5, Just 4) -> 18
 		(Just 6, Just 4) -> 19
+		(Just 7, Just 4) -> 20		
 		_ -> 0
 
 -- Map coords to index
@@ -212,17 +219,19 @@ getPrev b@Board{prevInput=x} = x
 handleKeys :: Event -> Board -> Board
 handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     if (getPrev b == 17) then -- The last button clicked was the destroy button, hence remove the clicked tile, reset the previous index and return new board
-      makeBoard (destroyTile (getIndex(x',y')) (getGameState b)) (1,2) 0
+      makeBoard (destroyTile (getIndex(x',y')) (getGameState b)) (1,2) 0 (updateHistory (destroyTile (getIndex(x',y')) (getGameState b)) b)
     else if (getPrev b == 18) then -- The last button clicked was the clone button, hence clone the clicked tile, reset the previous index and return new board
-      makeBoard (getGameState b) (((cloneValue (getIndex(x',y')) (getGameState b))), getNextNumber b) 0
+      makeBoard (getGameState b) (((cloneValue (getIndex(x',y')) (getGameState b))), getNextNumber b) 0 (updateHistory (getGameState b) b)
     else if (getIndex(x',y')) == 17 then -- Set last index to destroy
       updatePrev b 17
     else if (getIndex(x',y')) == 18 then -- Set last index to clone
       updatePrev b 18
-    else if (getIndex(x',y')) == 19 then -- Set last index to clone
-      makeBoard (getGameState b) (12,3) 0      
+    else if (getIndex(x',y')) == 19 then -- Make new next values
+      makeBoard (getGameState b) (12,3) 0 (updateHistory (getGameState b) b)
+    else if (getIndex(x',y')) == 20 then -- Go one step back in history
+    	makeBoard (getFromHistory b) (1,2) 0 (updateHistory (getGameState b) b)
     else -- Default cause: Just place new tile
-      makeBoard (pushUpdates (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (1,2) 0		
+      makeBoard (pushUpdates (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (1,2) 0	(updateHistory (pushUpdates (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b)
 
 handleKeys _ b = b   
 
@@ -244,7 +253,7 @@ getGameState b = tilesToList(boardToTiles b)
 
 
 main :: IO ()
-main = play window background 1 (makeBoard gameState (1,1) 0) drawBoard handleKeys (flip const)
+main = play window background 1 (makeBoard gameState (1,1) 0 (gameState, gameState, gameState)) drawBoard handleKeys (flip const)
 
 -- Get a tuple (value, index) of a certain element by its index
 getCurrentValue :: [(Int,Maybe Int)] -> Int -> (Int, Maybe Int)
@@ -326,3 +335,7 @@ cloneValue :: Int -> [(Int, Maybe Int)] -> Int
 cloneValue index ((a,b):xs)
   | index == a = getNumber b 
   | otherwise = cloneValue index xs
+
+updateHistory y b@Board{history=(v,w,x)} = (y,v,w)
+
+getFromHistory b@Board{history=(v,w,x)} = w
