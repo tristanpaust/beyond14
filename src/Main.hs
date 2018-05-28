@@ -18,7 +18,13 @@ window :: Display
 window = InWindow "Beyond 14" (width, height) (offset, offset)
 
 background :: Color
-background = dark green
+background = white
+
+lightBlue :: Color
+lightBlue = makeColorI 106 214 174 255
+
+darkBlue :: Color
+darkBlue = makeColorI 48 66 97 255
 
 gameState :: [(Int, Maybe Int)]
 gameState = [
@@ -39,6 +45,29 @@ gameState = [
   (15, Nothing),
   (16, Nothing)
   ]
+
+getColor :: Maybe Color -> Color
+getColor (Just c) = c
+getColor _ = white 
+
+tileColors :: [(Maybe Int, Color)]
+tileColors = [(Nothing, makeColorI  48  66  97 255),
+               (Just 1,  makeColorI 104 201 251 255),
+               (Just 2,  makeColorI 145 243 107 255),
+               (Just 3,  makeColorI 235  99 120 255),
+               (Just 4,  makeColorI 228 110 254 255),
+               (Just 5,  makeColorI 253 229 109 255),
+               (Just 6,  makeColorI 238 132 101 255),
+               (Just 7,  makeColorI 104 208 165 255),
+               (Just 8,  makeColorI 104 201 251 255),
+               (Just 9,  makeColorI 145 243 107 255),
+               (Just 10, makeColorI 235  99 121 255),
+               (Just 11, makeColorI 228 110 254 255),
+               (Just 12, makeColorI 245 232  95 255),
+               (Just 13, makeColorI 238 132 101 255),
+               (Just 14, makeColorI 104 208 165 255)
+              ]
+
 -- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
 
 data Tile = Tile {value :: (Int, Maybe Int)}
@@ -63,9 +92,10 @@ makeTile a b = Tile {value = (a,b)}
 getTileList ((a,b):xs) = makeTile a b : getTileList xs
 getTileList [] = []
 
-makeBoard :: [(Int, Maybe Int)] -> (Int, Int) -> Int -> ([(Int, Maybe Int)], [(Int, Maybe Int)], [(Int, Maybe Int)]) -> Board
-makeBoard [] _ _ _ = Board {state = [], nextVals = (makeNewNumbers 1,makeNewNumbers 1), prevInput = 0, history=(gameState, gameState, gameState), score=0}
-makeBoard ((a,b):xs) (i,j) p (v,w,x) = Board {state = getTileList ((a,b):xs), nextVals = (makeNewNumbers i, makeNewNumbers j), prevInput = p, history=(v,w,x)}
+-- makeBoard: gamestate -> next numbers -> previous input -> history -> score
+makeBoard :: [(Int, Maybe Int)] -> (Int, Int) -> Int -> ([(Int, Maybe Int)], [(Int, Maybe Int)], [(Int, Maybe Int)]) -> Int -> Board
+makeBoard [] _ _ _ _  = Board {state = [], nextVals = (makeNewNumbers 1,makeNewNumbers 1), prevInput = 0, history=(gameState, gameState, gameState), score=0}
+makeBoard ((a,b):xs) (i,j) p (v,w,x) s = Board {state = getTileList ((a,b):xs), nextVals = (makeNewNumbers i, makeNewNumbers j), prevInput = p, history=(v,w,x), score=s}
 
 makeNewNumbers :: Int -> NextVal
 makeNewNumbers a = NextVal {number = (a)}
@@ -80,11 +110,17 @@ drawNextNumbers t@NextVal{number=b} =
 
 drawSpecialButton :: String -> Picture
 drawSpecialButton s = 
-  let background = [color blue $ rectangleSolid 100 100,
-                    color yellow  $ rectangleSolid 95 95
+  let background = [color lightBlue $ rectangleSolid 100 100,
+                    color lightBlue  $ rectangleSolid 95 95
                    ]
       number =  [translate (-20) (-20) $ scale 0.5 0.5 $ text $ s]
     in pictures [ translate 0 0 $ pictures $ background ++ number ]
+
+drawScore :: Board -> Picture
+drawScore b@Board{score=s} = 
+    let word  = [translate (-200) (0) $ text "Score: "] 
+        score = [translate (200) (0) $ text $ show $ s]
+    in pictures [translate 0 0 $ scale 0.3 0.3 $ pictures $ word ++ score]
 
 -- Take value out of "Just" as we don#t want to print that word
 getNumber :: Maybe Int -> Int
@@ -93,8 +129,8 @@ getNumber (Just number) = number
 -- Make a tile with a small frame, a background and a value on top
 drawTile :: Float -> Tile -> Picture
 drawTile x t@Tile{value=(a,b)} = 
-  let background = [color orange $ rectangleSolid 100 100,
-                    color green  $ rectangleSolid 95 95
+  let background = [color lightBlue $ rectangleSolid 100 100,
+                    color (getColor (lookup b tileColors))  $ rectangleSolid 98 98
                    ]
       number = if b /= Nothing 
                  then [translate (-20) (-20) $ scale 0.5 0.5 $ text $ show $ (getNumber b)]
@@ -113,8 +149,10 @@ drawRow [a,b,c,d] =
 
 -- Get all tiles and make rows
 drawBoard :: Board -> Picture
-drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16], nextVals=(i,j), prevInput=k, history=(v,w,x)} =
+drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16], nextVals=(i,j), prevInput=k, history=(v,w,x), score=s} =
   pictures [
+    translate (0) 0 $ color lightBlue $ rectangleSolid 405 405, -- Board lightblue frame
+    translate (-150) 215 $ scale 0.8 0.8 $ ((drawScore b)), -- Next number
     translate (150) 250 $ scale 0.8 0.8 $ ((drawNextNumbers i)), -- Next number
     translate (80) 235 $ scale 0.5 0.5 $ ((drawNextNumbers j)), -- Next next number
     translate (-175) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "D")), -- Destroy tile
@@ -130,7 +168,7 @@ drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13,
 
 -- Initialize empty board that'll be used for the gui
 emptyBoard :: Picture
-emptyBoard = pictures [ drawBoard (makeBoard gameState (1,1) 0 (gameState, gameState, gameState)) ]
+emptyBoard = pictures [ drawBoard (makeBoard gameState (1,1) 0 (gameState, gameState, gameState) 0) ]
 
 -- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
 -- End of Drawing Stuff
@@ -222,25 +260,25 @@ randomlyChoose currentState =
     return ((makeListFromState currentState) !! i)
   else return 1
 
-updatePrev b x = Board {prevInput = x, nextVals = (makeNewNumbers 1, makeNewNumbers 2), state = getTileList(getGameState b)}
+updatePrev b x = Board {prevInput = x, nextVals = (makeNewNumbers 1, makeNewNumbers 2), state = getTileList(getGameState b), history=(getFullHistory b), score=(getCurrentScore b)}
 getPrev b@Board{prevInput=x} = x
 
 handleKeys :: Event -> Board -> Board
 handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     if (getPrev b == 17) then -- The last button clicked was the destroy button, hence remove the clicked tile, reset the previous index and return new board
-      makeBoard (destroyTile (getIndex(x',y')) (getGameState b)) (1,2) 0 (updateHistory (destroyTile (getIndex(x',y')) (getGameState b)) b)
+      makeBoard (destroyTile (getIndex(x',y')) (getGameState b)) (1,2) 0 (updateHistory (destroyTile (getIndex(x',y')) (getGameState b)) b) (getCurrentScore b)
     else if (getPrev b == 18) then -- The last button clicked was the clone button, hence clone the clicked tile, reset the previous index and return new board
-      makeBoard (getGameState b) (((cloneValue (getIndex(x',y')) (getGameState b))), getNextNumber b) 0 (updateHistory (getGameState b) b)
+      makeBoard (getGameState b) (((cloneValue (getIndex(x',y')) (getGameState b))), getNextNumber b) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else if (getIndex(x',y')) == 17 then -- Set last index to destroy
       updatePrev b 17
     else if (getIndex(x',y')) == 18 then -- Set last index to clone
       updatePrev b 18
     else if (getIndex(x',y')) == 19 then -- Make new next values
-      makeBoard (getGameState b) (12,3) 0 (updateHistory (getGameState b) b)
+      makeBoard (getGameState b) (12,3) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else if (getIndex(x',y')) == 20 then -- Go one step back in history
-      makeBoard (getFromHistory b) (1,2) 0 (updateHistory (getGameState b) b)
+      makeBoard (getFromHistory b) (1,2) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else -- Default cause: Just place new tile
-      makeBoard (pushUpdates (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (1,2) 0  (updateHistory (pushUpdates (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b)
+      makeBoard (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (1,2) 0  (updateHistory (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b) (getCurrentScore b)
 
 handleKeys _ b = b   
 
@@ -260,9 +298,8 @@ boardToTiles b@Board{state=(x:xs)} = (x:xs)
 getGameState :: Board -> [(Int, Maybe Int)]
 getGameState b = tilesToList(boardToTiles b)
 
-
 main :: IO ()
-main = play window background 1 (makeBoard gameState (1,1) 0 (gameState, gameState, gameState)) drawBoard handleKeys (flip const)
+main = play window background 1 (makeBoard gameState (1,1) 0 (gameState, gameState, gameState) 0 ) drawBoard handleKeys (flip const)
 
 -- Get a tuple (value, index) of a certain element by its index
 getCurrentValue :: [(Int,Maybe Int)] -> Int -> (Int, Maybe Int)
@@ -279,8 +316,9 @@ getNeighbor ((index,tile):board) index'
   | otherwise = getNeighbor board index'
 
 -- Get all the neighbors that a tile has, as a list of tuples with indices and values
-getList :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
-getList board index = 
+-- Gets all neigbors for indices 6,7,10,11
+getListMid :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
+getListMid board index = 
   let neighbors = getNeighbor board in 
     (
        neighbors (index - 5):
@@ -292,6 +330,114 @@ getList board index =
        neighbors (index + 4):
       [neighbors (index + 5)]
     )
+
+-- Gets all neighbors for indices 2,3
+getListTop :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
+getListTop board index =
+  let neighbors = getNeighbor board in 
+    (
+       neighbors (index - 1):
+       neighbors (index + 1):
+       neighbors (index + 3):
+       neighbors (index + 4):
+      [neighbors (index + 5)]
+    )
+
+-- Gets all neighbors for indices 14,15
+getListBot :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
+getListBot board index =
+  let neighbors = getNeighbor board in 
+    (
+       neighbors (index - 5):
+       neighbors (index - 4):
+       neighbors (index - 3):
+       neighbors (index - 1):
+       [neighbors (index + 1)]
+    )
+
+-- Gets all neighbors for indices 5,9
+getListLeft :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
+getListLeft board index =
+  let neighbors = getNeighbor board in 
+    (
+       neighbors (index - 4):
+       neighbors (index - 3):
+       neighbors (index + 1):
+       neighbors (index + 4):
+       [neighbors (index + 5)]
+    )
+
+-- Gets all neighbors for indices 8,12
+getListRight :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
+getListRight board index =
+  let neighbors = getNeighbor board in 
+    (
+       neighbors (index - 5):
+       neighbors (index - 4):
+       neighbors (index - 1):
+       neighbors (index + 3):
+       [neighbors (index + 4)]
+    )
+
+-- Gets all neighbors for index 1
+getListTopLeftC :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
+getListTopLeftC board index =
+  let neighbors = getNeighbor board in 
+    (
+       neighbors (index + 1):
+       neighbors (index + 4):
+       [neighbors (index + 5)]
+    )
+
+-- Gets all neighbors for index 4
+getListTopRightC :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
+getListTopRightC board index =
+  let neighbors = getNeighbor board in 
+    (
+       neighbors (index - 1):
+       neighbors (index + 3):
+       [neighbors (index + 4)]
+    )    
+
+-- Gets all neighbors for index 13
+getListBotLeftC :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
+getListBotLeftC board index =
+  let neighbors = getNeighbor board in 
+    (
+       neighbors (index - 4):
+       neighbors (index - 3):
+       [neighbors (index + 1)]
+    ) 
+
+-- Gets all neighbors for index 16
+getListBotRightC :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
+getListBotRightC board index =
+  let neighbors = getNeighbor board in 
+    (
+       neighbors (index - 5):
+       neighbors (index - 4):
+       [neighbors (index - 1)]
+    )
+
+decideNeighbors :: [(Int,Maybe Int)] -> Int -> [(Int, Maybe Int)]
+decideNeighbors board index =
+  case index of
+    1  -> getListTopLeftC board index
+    2  -> getListTop board index
+    3  -> getListTop board index
+    4  -> getListTopRightC board index
+    5  -> getListLeft board index
+    6  -> getListMid board index
+    7  -> getListMid board index
+    8  -> getListRight board index
+    9  -> getListLeft board index
+    10 -> getListMid board index
+    11 -> getListMid board index
+    12 -> getListRight board index
+    13 -> getListBotLeftC board index
+    14 -> getListBot board index
+    15 -> getListBot board index 
+    16 -> getListBotRightC board index 
 
 -- Compare all values of neighboring tiles with the new tile and return a new sub-board in which all old values are turned into "Nothing" if they matched
 checkNeighborVals :: (Int, Maybe Int) -> [(Int, Maybe Int)] -> [(Int, Maybe Int)]
@@ -310,13 +456,14 @@ insertAt [] _ _ = []
 -- Get the neighboring values already changed to "Nothing" from the function above and apply this sub-board to the actual game state board
 -- Then increase the new tile value by one if we had a value match
 -- Call yourself again recursively to check whether this update created a new value match situation
-pushUpdates :: [(Int, Maybe Int)] -> Int -> [(Int, Maybe Int)]
-pushUpdates board index = do
-    board' <- [checkNeighborVals (getCurrentValue board index) (getList board index)]
+pushUpdates :: Board -> [(Int, Maybe Int)] -> Int -> [(Int, Maybe Int)]
+pushUpdates b board index = do
+    board' <- [checkNeighborVals (getCurrentValue board index) (decideNeighbors board index)]
     if (length board') > 0 then do
+        [(increaseCurrentScore b)]
         updatedBoard <- [(updateBoard board board')]
         finalBoard <- [increaseCurrentValue updatedBoard (getCurrentValue board index)]
-        (pushUpdates finalBoard index)
+        (pushUpdates b finalBoard index)
     else board
 
 -- Check for intersections between values in the actual gamestate and the new sub-board 
@@ -350,3 +497,12 @@ updateHistory y b@Board{history=(v,w,x)} = (y,v,w)
 
 getFromHistory :: Board -> [(Int, Maybe Int)]
 getFromHistory b@Board{history=(v,w,x)} = w
+
+getFullHistory :: Board -> ([(Int, Maybe Int)], [(Int, Maybe Int)], [(Int, Maybe Int)])
+getFullHistory b@Board{history=(x,y,z)} = (x,y,z)
+
+getCurrentScore :: Board -> Int
+getCurrentScore b@Board{score=s} = s
+
+increaseCurrentScore :: Board -> Board
+increaseCurrentScore b@Board{score=s} = b {score = s+10}
