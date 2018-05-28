@@ -102,8 +102,8 @@ makeNewNumbers a = NextVal {number = (a)}
 
 drawNextNumbers :: NextVal -> Picture
 drawNextNumbers t@NextVal{number=b} = 
-  let background = [color blue $ rectangleSolid 100 100,
-                    color yellow  $ rectangleSolid 95 95
+  let background = [
+                    color (getColor (lookup (Just b) tileColors))  $ rectangleSolid 100 100
                    ]
       number =  [translate (-20) (-20) $ scale 0.5 0.5 $ text $ show $ b]
     in pictures [ translate 0 0 $ pictures $ background ++ number ]
@@ -152,13 +152,19 @@ drawBoard :: Board -> Picture
 drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16], nextVals=(i,j), prevInput=k, history=(v,w,x), score=s} =
   pictures [
     translate (0) 0 $ color lightBlue $ rectangleSolid 405 405, -- Board lightblue frame
-    translate (-150) 215 $ scale 0.8 0.8 $ ((drawScore b)), -- Next number
-    translate (150) 250 $ scale 0.8 0.8 $ ((drawNextNumbers i)), -- Next number
-    translate (80) 235 $ scale 0.5 0.5 $ ((drawNextNumbers j)), -- Next next number
+    translate (-150) 215 $ scale 0.8 0.8 $ ((drawScore b)), -- Show score
+    translate (171) 235 $ scale 0.6 0.6 $ ((drawNextNumbers i)), -- Next number
+    translate (170) 272 $ scale 0.19 0.19 $ color darkBlue $ line [ 
+ (-50, 50),
+ ( 50, 50),
+ ( 0, 0),
+ (-50, 50)
+ ],
+    translate (125) 220 $ scale 0.3 0.3 $ ((drawNextNumbers j)), -- Next next number
     translate (-175) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "D")), -- Destroy tile
     translate (-115) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "C")), -- Clone tile
     translate (-55) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "S")), -- Reshuffle
-    translate (5) (-230) $ scale 0.5 0.5 $ line [(-50, 50),(-50,-50)],
+    translate (5) (-230) $ scale 0.5 0.5 $ line [(-50, 50),(-50,-50)], -- Separating bar
     translate (15) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "R")), -- Rewind
     translate (-150) 150 (drawRow [a1, a2, a3, a4]), -- Top row
     translate (-150) 50 (drawRow [a5, a6, a7, a8]), -- Second to top row
@@ -274,7 +280,7 @@ handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     else if (getIndex(x',y')) == 18 then -- Set last index to clone
       updatePrev b 18
     else if (getIndex(x',y')) == 19 then -- Make new next values
-      makeBoard (getGameState b) (12,3) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
+      makeBoard (getGameState b) (15,3) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else if (getIndex(x',y')) == 20 then -- Go one step back in history
       makeBoard (getFromHistory b) (1,2) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else -- Default cause: Just place new tile
