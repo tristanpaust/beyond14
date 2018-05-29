@@ -1,8 +1,7 @@
 # Beyond 14
 Haskell clone of the great mobile game "Beyond 14" ( [iOS](https://itunes.apple.com/tt/app/beyond-14/id1097469600?mt=8) / [Android](https://play.google.com/store/apps/details?id=com.mojoforest.beyondfourteen&hl=en_US) ), using Gloss.
 
-![alt text](https://github.com/tristanpaust/beyond14/tree/master/assets/beyond14_sample.png "Beyond 14 sample")
-
+![Beyond 14 sample](https://github.com/tristanpaust/beyond14/blob/master/assets/beyond14_sample.png "Beyond 14 sample")
 
 Run with 
 
