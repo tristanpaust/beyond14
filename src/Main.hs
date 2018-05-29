@@ -1,13 +1,12 @@
 module Main where
 
-import System.IO    
-import Data.List (nubBy)
 import Data.Maybe
 import Control.Monad
 import Control.Applicative
 import System.Random (randomRIO)
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
+import System.IO.Unsafe (unsafePerformIO)
 
 width, height, offset :: Int
 width = 500
@@ -26,7 +25,7 @@ lightBlue = makeColorI 106 214 174 255
 darkBlue :: Color
 darkBlue = makeColorI 48 66 97 255
 
-gameState :: [(Int, Maybe Int)]
+gameState :: [(Int, Maybe Int)] -- Initial game state
 gameState = [
   (1,  Nothing),
   (2,  Nothing),
@@ -76,8 +75,6 @@ data Tile = Tile {value :: (Int, Maybe Int)}
 -- Used to show the next two numbers that need to be placed
 data NextVal = NextVal {number :: Int}
 
-type Coordinates = (Float, Float)
-
 data Board = Board { 
   nextVals :: (NextVal,NextVal), -- The two next numbers that are displayed on top
   state :: [Tile], 
@@ -102,15 +99,14 @@ makeNewNumbers a = NextVal {number = (a)}
 
 drawNextNumbers :: NextVal -> Picture
 drawNextNumbers t@NextVal{number=b} = 
-  let background = [
-                    color (getColor (lookup (Just b) tileColors))  $ rectangleSolid 100 100
-                   ]
+  let background = [color (getColor (lookup (Just b) tileColors))  $ rectangleSolid 100 100]
       number =  [translate (-20) (-20) $ scale 0.5 0.5 $ text $ show $ b]
     in pictures [ translate 0 0 $ pictures $ background ++ number ]
 
 drawSpecialButton :: String -> Picture
 drawSpecialButton s = 
-  let background = [color lightBlue $ rectangleSolid 100 100,
+  let background = [
+                    color lightBlue $ rectangleSolid 100 100,
                     color lightBlue  $ rectangleSolid 95 95
                    ]
       number =  [translate (-20) (-20) $ scale 0.5 0.5 $ text $ s]
@@ -119,7 +115,7 @@ drawSpecialButton s =
 drawScore :: Board -> Picture
 drawScore b@Board{score=s} = 
     let word  = [translate (-200) (0) $ text "Score: "] 
-        score = [translate (200) (0) $ text $ show $ s]
+        score = [translate (200) (0) $ text $ show $ (getCurrentScore b)]
     in pictures [translate 0 0 $ scale 0.3 0.3 $ pictures $ word ++ score]
 
 -- Take value out of "Just" as we don#t want to print that word
@@ -129,7 +125,8 @@ getNumber (Just number) = number
 -- Make a tile with a small frame, a background and a value on top
 drawTile :: Float -> Tile -> Picture
 drawTile x t@Tile{value=(a,b)} = 
-  let background = [color lightBlue $ rectangleSolid 100 100,
+  let background = [
+                    color lightBlue $ rectangleSolid 100 100,
                     color (getColor (lookup b tileColors))  $ rectangleSolid 98 98
                    ]
       number = if b /= Nothing 
@@ -153,13 +150,8 @@ drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13,
   pictures [
     translate (0) 0 $ color lightBlue $ rectangleSolid 405 405, -- Board lightblue frame
     translate (-150) 215 $ scale 0.8 0.8 $ ((drawScore b)), -- Show score
+    translate (170) 272 $ scale 0.19 0.19 $ color darkBlue $ line [(-50,50),(50,50),(0,0),(-50,50)], -- Small top triangle
     translate (171) 235 $ scale 0.6 0.6 $ ((drawNextNumbers i)), -- Next number
-    translate (170) 272 $ scale 0.19 0.19 $ color darkBlue $ line [ 
- (-50, 50),
- ( 50, 50),
- ( 0, 0),
- (-50, 50)
- ],
     translate (125) 220 $ scale 0.3 0.3 $ ((drawNextNumbers j)), -- Next next number
     translate (-175) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "D")), -- Destroy tile
     translate (-115) (-230) $ scale 0.5 0.5 $ ((drawSpecialButton "C")), -- Clone tile
@@ -242,6 +234,10 @@ getIndex (x,y) = coordsToInt (checkXCoordinate x y, checkYCoordinate y)
 getNextNumber :: Board -> Int
 getNextNumber b@Board{nextVals=(i,j)} = getValFromNumber i
 
+-- Get the second value from the two top values
+updateNextNumber :: Board -> Int
+updateNextNumber b@Board{nextVals=(i,j)} = getValFromNumber j
+
 -- Get value out of NextVal, which will be placed on the board on click
 getValFromNumber :: NextVal -> Int
 getValFromNumber n@NextVal{number=i} = i
@@ -257,22 +253,21 @@ makeListFromState ((a,x):xs)
   | x == Nothing = makeListFromState xs
 makeListFromState [] = []
 
-
 -- Pick a value from already placed values on the board and return it
 randomlyChoose :: [(Int, Maybe Int)] -> IO Int
 randomlyChoose currentState = 
   if (makeListFromState currentState) /= [] then do
     i <- randomRIO (0,(length(makeListFromState currentState)-1))
-    return ((makeListFromState currentState) !! i)
+    return $ ((makeListFromState currentState) !! i)
   else return 1
 
-updatePrev b x = Board {prevInput = x, nextVals = (makeNewNumbers 1, makeNewNumbers 2), state = getTileList(getGameState b), history=(getFullHistory b), score=(getCurrentScore b)}
+updatePrev b x = Board {prevInput = x, nextVals = (makeNewNumbers (unsafePerformIO(getFreshvalue b)), makeNewNumbers (unsafePerformIO(getFreshvalue b))), state = getTileList(getGameState b), history=(getFullHistory b), score=(getCurrentScore b)}
 getPrev b@Board{prevInput=x} = x
 
 handleKeys :: Event -> Board -> Board
 handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     if (getPrev b == 17) then -- The last button clicked was the destroy button, hence remove the clicked tile, reset the previous index and return new board
-      makeBoard (destroyTile (getIndex(x',y')) (getGameState b)) (1,2) 0 (updateHistory (destroyTile (getIndex(x',y')) (getGameState b)) b) (getCurrentScore b)
+      makeBoard (destroyTile (getIndex(x',y')) (getGameState b)) (getNextNumber b, unsafePerformIO(getFreshvalue b)) 0 (updateHistory (destroyTile (getIndex(x',y')) (getGameState b)) b) (getCurrentScore b)
     else if (getPrev b == 18) then -- The last button clicked was the clone button, hence clone the clicked tile, reset the previous index and return new board
       makeBoard (getGameState b) (((cloneValue (getIndex(x',y')) (getGameState b))), getNextNumber b) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else if (getIndex(x',y')) == 17 then -- Set last index to destroy
@@ -280,12 +275,11 @@ handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     else if (getIndex(x',y')) == 18 then -- Set last index to clone
       updatePrev b 18
     else if (getIndex(x',y')) == 19 then -- Make new next values
-      makeBoard (getGameState b) (15,3) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
+      makeBoard (getGameState b) (getNextNumber b, unsafePerformIO(getFreshvalue b)) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else if (getIndex(x',y')) == 20 then -- Go one step back in history
-      makeBoard (getFromHistory b) (1,2) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
+      makeBoard (getFromHistory b) (getNextNumber b, unsafePerformIO(getFreshvalue b)) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else -- Default cause: Just place new tile
-      makeBoard (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (1,2) 0  (updateHistory (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b) (getCurrentScore b)
-
+      (makeBoard (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (updateNextNumber b, unsafePerformIO(getFreshvalue b)) 0  (updateHistory (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b) (getCurrentScore b+10))
 handleKeys _ b = b   
 
 -- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
@@ -466,7 +460,7 @@ pushUpdates :: Board -> [(Int, Maybe Int)] -> Int -> [(Int, Maybe Int)]
 pushUpdates b board index = do
     board' <- [checkNeighborVals (getCurrentValue board index) (decideNeighbors board index)]
     if (length board') > 0 then do
-        [(increaseCurrentScore b)]
+        --[(updateScore b)]
         updatedBoard <- [(updateBoard board board')]
         finalBoard <- [increaseCurrentValue updatedBoard (getCurrentValue board index)]
         (pushUpdates b finalBoard index)
