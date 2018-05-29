@@ -3,9 +3,9 @@ module Main where
 import Data.Maybe
 import Control.Monad
 import Control.Applicative
-import System.Random (randomRIO)
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
+import System.Random (randomRIO)
 import System.IO.Unsafe (unsafePerformIO)
 
 width, height, offset :: Int
@@ -30,7 +30,7 @@ gameState = [
   (1,  Nothing),
   (2,  Nothing),
   (3,  Nothing),
-  (4,  Just 1),
+  (4,  Just 11),
   (5,  Nothing),
   (6,  Nothing),
   (7,  Just 4),
@@ -50,7 +50,7 @@ getColor (Just c) = c
 getColor _ = white 
 
 tileColors :: [(Maybe Int, Color)]
-tileColors = [(Nothing, makeColorI  48  66  97 255),
+tileColors = [ (Nothing, makeColorI  48  66  97 255),
                (Just 1,  makeColorI 104 201 251 255),
                (Just 2,  makeColorI 145 243 107 255),
                (Just 3,  makeColorI 235  99 120 255),
@@ -100,7 +100,7 @@ makeNewNumbers a = NextVal {number = (a)}
 drawNextNumbers :: NextVal -> Picture
 drawNextNumbers t@NextVal{number=b} = 
   let background = [color (getColor (lookup (Just b) tileColors))  $ rectangleSolid 100 100]
-      number =  [translate (-20) (-20) $ scale 0.5 0.5 $ text $ show $ b]
+      number =  [translate (-20) (-20) $ scale (getTileScale (Just b)) (getTileScale (Just b)) $ text $ show $ b]
     in pictures [ translate 0 0 $ pictures $ background ++ number ]
 
 drawSpecialButton :: String -> Picture
@@ -109,7 +109,7 @@ drawSpecialButton s =
                     color lightBlue $ rectangleSolid 100 100,
                     color lightBlue  $ rectangleSolid 95 95
                    ]
-      number =  [translate (-20) (-20) $ scale 0.5 0.5 $ text $ s]
+      number =  [ translate (-20) (-20) $ scale 0.5 0.5 $ text $ s]
     in pictures [ translate 0 0 $ pictures $ background ++ number ]
 
 drawScore :: Board -> Picture
@@ -118,9 +118,22 @@ drawScore b@Board{score=s} =
         score = [translate (200) (0) $ text $ show $ (getCurrentScore b)]
     in pictures [translate 0 0 $ scale 0.3 0.3 $ pictures $ word ++ score]
 
--- Take value out of "Just" as we don#t want to print that word
+-- Take value out of "Just" as we don't want to print that word
 getNumber :: Maybe Int -> Int
 getNumber (Just number) = number
+getNumber Nothing = 0
+
+-- Scale down the number size if it is bigger than 10
+getTileScale :: Maybe Int -> Float
+getTileScale (Just n)
+  | (n `div` 10) > 0 = 0.2
+  | otherwise = 0.5
+
+-- Since the size of the number can change, so can the translation
+getTileTranslation :: Maybe Int -> Float
+getTileTranslation (Just n)
+  | (n `div` 10) > 0 = (-10)
+  | otherwise = (-20)
 
 -- Make a tile with a small frame, a background and a value on top
 drawTile :: Float -> Tile -> Picture
@@ -130,7 +143,7 @@ drawTile x t@Tile{value=(a,b)} =
                     color (getColor (lookup b tileColors))  $ rectangleSolid 98 98
                    ]
       number = if b /= Nothing 
-                 then [translate (-20) (-20) $ scale 0.5 0.5 $ text $ show $ (getNumber b)]
+                 then [translate (getTileTranslation b) (getTileTranslation b) $ scale (getTileScale b) (getTileScale b) $ text $ show $ (getNumber b)]
                  else []
     in pictures [ translate x 0 $ pictures $ background ++ number ]
 
@@ -267,9 +280,15 @@ getPrev b@Board{prevInput=x} = x
 handleKeys :: Event -> Board -> Board
 handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     if (getPrev b == 17) then -- The last button clicked was the destroy button, hence remove the clicked tile, reset the previous index and return new board
-      makeBoard (destroyTile (getIndex(x',y')) (getGameState b)) (getNextNumber b, unsafePerformIO(getFreshvalue b)) 0 (updateHistory (destroyTile (getIndex(x',y')) (getGameState b)) b) (getCurrentScore b)
+      if (destroyTile (getIndex(x',y')) (getGameState b)) /= [(0, Nothing)] then
+        makeBoard (destroyTile (getIndex(x',y')) (getGameState b)) (getNextNumber b, unsafePerformIO(getFreshvalue b)) 0 (updateHistory (destroyTile (getIndex(x',y')) (getGameState b)) b) (getCurrentScore b)
+      else -- We can't destroy a tile cause there is no value / the user clicked elsewhere / an empty tile
+        b
     else if (getPrev b == 18) then -- The last button clicked was the clone button, hence clone the clicked tile, reset the previous index and return new board
-      makeBoard (getGameState b) (((cloneValue (getIndex(x',y')) (getGameState b))), getNextNumber b) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
+      if (cloneValue (getIndex(x',y')) (getGameState b)) /= 0 then
+        makeBoard (getGameState b) (((cloneValue (getIndex(x',y')) (getGameState b))), getNextNumber b) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
+      else -- We can't clone a value cause there is no value to clone
+        b
     else if (getIndex(x',y')) == 17 then -- Set last index to destroy
       updatePrev b 17
     else if (getIndex(x',y')) == 18 then -- Set last index to clone
@@ -278,8 +297,11 @@ handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
       makeBoard (getGameState b) (getNextNumber b, unsafePerformIO(getFreshvalue b)) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else if (getIndex(x',y')) == 20 then -- Go one step back in history
       makeBoard (getFromHistory b) (getNextNumber b, unsafePerformIO(getFreshvalue b)) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
-    else -- Default cause: Just place new tile
+    else if (getIndex(x',y') > 0) && (getIndex(x',y') < 20) then -- Default cause: Just place new tile
       (makeBoard (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (updateNextNumber b, unsafePerformIO(getFreshvalue b)) 0  (updateHistory (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b) (getCurrentScore b+10))
+    else -- Clicked outside the gameboard, we don't have a match; just return the same board
+      b  
+
 handleKeys _ b = b   
 
 -- *~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~ --
@@ -486,11 +508,13 @@ destroyTile :: Int -> [(Int, Maybe Int)] -> [(Int, Maybe Int)]
 destroyTile index ((a,b):xs)
   | index == a = (a,Nothing) : xs
   | otherwise = (a,b) : destroyTile index xs
+destroyTile _ _ = [(0, Nothing)]
 
 cloneValue :: Int -> [(Int, Maybe Int)] -> Int
 cloneValue index ((a,b):xs)
   | index == a = getNumber b 
   | otherwise = cloneValue index xs
+cloneValue 0 _ = 0
 
 updateHistory :: [(Int, Maybe Int)] -> Board -> ([(Int, Maybe Int)],[(Int, Maybe Int)],[(Int, Maybe Int)])
 updateHistory y b@Board{history=(v,w,x)} = (y,v,w)
