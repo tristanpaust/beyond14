@@ -277,6 +277,10 @@ randomlyChoose currentState =
 updatePrev b x = Board {prevInput = x, nextVals = (makeNewNumbers (getNextNumber b), makeNewNumbers (updateNextNumber b)), state = getTileList(getGameState b), history=(getFullHistory b), score=(getCurrentScore b)}
 getPrev b@Board{prevInput=x} = x
 
+createNewBoard b (x',y') = (fst(pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))))
+updateScore b (x',y') = getCurrentScore(snd(pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))))
+changeHistory b (x',y') = updateHistory (fst(pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y'))))) b
+
 handleKeys :: Event -> Board -> Board
 handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     if (getPrev b == 17) then -- The last button clicked was the destroy button, hence remove the clicked tile, reset the previous index and return new board
@@ -298,7 +302,7 @@ handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     else if (getIndex(x',y')) == 20 && (getPrev b) == 0 then -- Go one step back in history
       makeBoard (getFromHistory b) (getNextNumber b, updateNextNumber b) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else if (getIndex(x',y') > 0) && (getIndex(x',y') < 17) && (snd (getCurrentValue (getGameState b) (getIndex(x',y')))) == Nothing then -- Default cause: Just place new tile
-      (makeBoard (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (updateNextNumber b, unsafePerformIO(getFreshvalue b)) 0  (updateHistory (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b) (getCurrentScore b+10))
+      (makeBoard (createNewBoard b (x',y'))(updateNextNumber b, unsafePerformIO(getFreshvalue b)) 0  (changeHistory b (x',y')) (updateScore b (x',y')))
     else -- Clicked outside the gameboard, we don't have a match; just return the same board
       b  
 
@@ -478,15 +482,17 @@ insertAt [] _ _ = []
 -- Get the neighboring values already changed to "Nothing" from the function above and apply this sub-board to the actual game state board
 -- Then increase the new tile value by one if we had a value match
 -- Call yourself again recursively to check whether this update created a new value match situation
-pushUpdates :: Board -> [(Int, Maybe Int)] -> Int -> [(Int, Maybe Int)]
+pushUpdates :: Board -> [(Int, Maybe Int)] -> Int -> ([(Int, Maybe Int)], Board)
 pushUpdates b board index = do
-    board' <- [checkNeighborVals (getCurrentValue board index) (decideNeighbors board index)]
+    let board' = checkNeighborVals (getCurrentValue board index) (decideNeighbors board index)
+    let test = b
     if (length board') > 0 then do
-        --[(updateScore b)]
-        updatedBoard <- [(updateBoard board board')]
-        finalBoard <- [increaseCurrentValue updatedBoard (getCurrentValue board index)]
-        (pushUpdates b finalBoard index)
-    else board
+        let test = increaseCurrentScore b
+        let updatedBoard = (updateBoard board board')
+        let finalBoard = increaseCurrentValue updatedBoard (getCurrentValue board index)
+        (pushUpdates test finalBoard index)
+    else (board, test)
+
 
 -- Check for intersections between values in the actual gamestate and the new sub-board 
 -- Replace the old values with the new ones
