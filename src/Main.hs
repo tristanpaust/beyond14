@@ -274,14 +274,14 @@ randomlyChoose currentState =
     return $ ((makeListFromState currentState) !! i)
   else return 1
 
-updatePrev b x = Board {prevInput = x, nextVals = (makeNewNumbers (unsafePerformIO(getFreshvalue b)), makeNewNumbers (unsafePerformIO(getFreshvalue b))), state = getTileList(getGameState b), history=(getFullHistory b), score=(getCurrentScore b)}
+updatePrev b x = Board {prevInput = x, nextVals = (makeNewNumbers (getNextNumber b), makeNewNumbers (updateNextNumber b)), state = getTileList(getGameState b), history=(getFullHistory b), score=(getCurrentScore b)}
 getPrev b@Board{prevInput=x} = x
 
 handleKeys :: Event -> Board -> Board
 handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     if (getPrev b == 17) then -- The last button clicked was the destroy button, hence remove the clicked tile, reset the previous index and return new board
       if (destroyTile (getIndex(x',y')) (getGameState b)) /= [(0, Nothing)] then
-        makeBoard (destroyTile (getIndex(x',y')) (getGameState b)) (getNextNumber b, unsafePerformIO(getFreshvalue b)) 0 (updateHistory (destroyTile (getIndex(x',y')) (getGameState b)) b) (getCurrentScore b)
+        makeBoard (destroyTile (getIndex(x',y')) (getGameState b)) (getNextNumber b, updateNextNumber b) 0 (updateHistory (destroyTile (getIndex(x',y')) (getGameState b)) b) (getCurrentScore b)
       else -- We can't destroy a tile cause there is no value / the user clicked elsewhere / an empty tile
         b
     else if (getPrev b == 18) then -- The last button clicked was the clone button, hence clone the clicked tile, reset the previous index and return new board
@@ -294,10 +294,10 @@ handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
     else if (getIndex(x',y')) == 18 then -- Set last index to clone
       updatePrev b 18
     else if (getIndex(x',y')) == 19 then -- Make new next values
-      makeBoard (getGameState b) (getNextNumber b, unsafePerformIO(getFreshvalue b)) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
+      makeBoard (getGameState b) (unsafePerformIO(getFreshvalue b) , unsafePerformIO(getFreshvalue b)) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
     else if (getIndex(x',y')) == 20 then -- Go one step back in history
-      makeBoard (getFromHistory b) (getNextNumber b, unsafePerformIO(getFreshvalue b)) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
-    else if (getIndex(x',y') > 0) && (getIndex(x',y') < 20) then -- Default cause: Just place new tile
+      makeBoard (getFromHistory b) (getNextNumber b, updateNextNumber b) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
+    else if (getIndex(x',y') > 0) && (getIndex(x',y') < 17) then -- Default cause: Just place new tile
       (makeBoard (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (updateNextNumber b, unsafePerformIO(getFreshvalue b)) 0  (updateHistory (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b) (getCurrentScore b+10))
     else -- Clicked outside the gameboard, we don't have a match; just return the same board
       b  
