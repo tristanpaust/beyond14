@@ -132,7 +132,7 @@ getTileScale (Just n)
 -- Since the size of the number can change, so can the translation
 getTileTranslation :: Maybe Int -> Float
 getTileTranslation (Just n)
-  | (n `div` 10) > 0 = (-10)
+  | (n `div` 10) > 0 = (-15)
   | otherwise = (-20)
 
 -- Make a tile with a small frame, a background and a value on top
@@ -176,7 +176,7 @@ drawBoard b@Board{state=[a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13,
     translate (-150) (-50) (drawRow [a9, a10, a11, a12]), -- Second to bottom row
     translate (-150) (-150) (drawRow [a13, a14, a15, a16]) -- Bottom row
   ]
-
+ 
 -- Initialize empty board that'll be used for the gui
 emptyBoard :: Picture
 emptyBoard = pictures [ drawBoard (makeBoard gameState (1,1) 0 (gameState, gameState, gameState) 0) ]
@@ -266,12 +266,12 @@ makeListFromState ((a,x):xs)
   | x == Nothing = makeListFromState xs
 makeListFromState [] = []
 
--- Pick a value from already placed values on the board and return it
+-- Pick a value from 1 to the already placed highest value on the board and return it
 randomlyChoose :: [(Int, Maybe Int)] -> IO Int
 randomlyChoose currentState = 
   if (makeListFromState currentState) /= [] then do
-    i <- randomRIO (0,(length(makeListFromState currentState)-1))
-    return $ ((makeListFromState currentState) !! i)
+    i <- randomRIO (1,(maximum(makeListFromState currentState)-1))
+    return $ (([1..(maximum(makeListFromState currentState))]) !! i)
   else return 1
 
 updatePrev b x = Board {prevInput = x, nextVals = (makeNewNumbers (getNextNumber b), makeNewNumbers (updateNextNumber b)), state = getTileList(getGameState b), history=(getFullHistory b), score=(getCurrentScore b)}
@@ -289,15 +289,15 @@ handleKeys (EventKey (MouseButton LeftButton) Down _ (x', y')) b =
         makeBoard (getGameState b) (((cloneValue (getIndex(x',y')) (getGameState b))), getNextNumber b) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
       else -- We can't clone a value cause there is no value to clone
         b
-    else if (getIndex(x',y')) == 17 then -- Set last index to destroy
+    else if (getIndex(x',y')) == 17 && (getPrev b) == 0 then -- Set last index to destroy
       updatePrev b 17
-    else if (getIndex(x',y')) == 18 then -- Set last index to clone
+    else if (getIndex(x',y')) == 18 && (getPrev b) == 0 then -- Set last index to clone
       updatePrev b 18
-    else if (getIndex(x',y')) == 19 then -- Make new next values
+    else if (getIndex(x',y')) == 19 && (getPrev b) == 0 then -- Make new next values
       makeBoard (getGameState b) (unsafePerformIO(getFreshvalue b) , unsafePerformIO(getFreshvalue b)) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
-    else if (getIndex(x',y')) == 20 then -- Go one step back in history
+    else if (getIndex(x',y')) == 20 && (getPrev b) == 0 then -- Go one step back in history
       makeBoard (getFromHistory b) (getNextNumber b, updateNextNumber b) 0 (updateHistory (getGameState b) b) (getCurrentScore b)
-    else if (getIndex(x',y') > 0) && (getIndex(x',y') < 17) then -- Default cause: Just place new tile
+    else if (getIndex(x',y') > 0) && (getIndex(x',y') < 17) && (snd (getCurrentValue (getGameState b) (getIndex(x',y')))) == Nothing then -- Default cause: Just place new tile
       (makeBoard (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) (updateNextNumber b, unsafePerformIO(getFreshvalue b)) 0  (updateHistory (pushUpdates b (insertAt (getGameState b) (getNextNumber b) ((getIndex(x',y')))) ((getIndex(x',y')))) b) (getCurrentScore b+10))
     else -- Clicked outside the gameboard, we don't have a match; just return the same board
       b  
@@ -510,11 +510,16 @@ destroyTile index ((a,b):xs)
   | otherwise = (a,b) : destroyTile index xs
 destroyTile _ _ = [(0, Nothing)]
 
+-- clone a value and disable this functionality for all special buttons
 cloneValue :: Int -> [(Int, Maybe Int)] -> Int
 cloneValue index ((a,b):xs)
   | index == a = getNumber b 
   | otherwise = cloneValue index xs
-cloneValue 0 _ = 0
+cloneValue 0 _  = 0
+cloneValue 17 _ = 0
+cloneValue 18 _ = 0
+cloneValue 19 _ = 0
+cloneValue 20 _ = 0
 
 updateHistory :: [(Int, Maybe Int)] -> Board -> ([(Int, Maybe Int)],[(Int, Maybe Int)],[(Int, Maybe Int)])
 updateHistory y b@Board{history=(v,w,x)} = (y,v,w)

@@ -13,16 +13,11 @@ cabal run
 
 TODO: 
 
-- New numbers are currently generated only from numbers that are on the board already. 
-  This makes it a bit too easy, as no small numbers show up randomly.
-
 - There is an infinite amount of destroy, clone, rewind and reshuffle, which also makes it very easy.
 
 - I did not have the time to figure out how different numbers are counted differently, how much combos additionally count, etc. 
   (Currently everything is counted as 10, no matter what the value is, and whether it is a combo or not)
 
 - The top progess bar, which gives additional special moves after a while is missing.
-
-- Bigger numbers should be scaled down to make sure they aren't getting larger than the tile itself.
 
 - The bottom buttons for special moves should have images instead of letters
