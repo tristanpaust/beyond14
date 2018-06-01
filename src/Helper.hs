@@ -135,10 +135,7 @@ randomlyChoose :: [(Int, Maybe Int)] -> IO Int
 randomlyChoose currentState = 
   if (makeListFromState currentState) /= [] then do
     i <- randomRIO (0,(length(nub(makeListFromState currentState)))-1)
-    if (i-1) > (length(nub([(makeListFromState currentState)]))-1) then
-      return 1
-    else 
-      return $ (([1..(maximum(nub(makeListFromState currentState)))]) !! i)
+    return $ (([1..(maximum(nub(makeListFromState currentState)))]) !! i)
   else return 1
 
 -- Check how many "Nothing" we have on the board. None of them means that there are no moves left
